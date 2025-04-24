@@ -8,6 +8,9 @@
 
 import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
+import { connect } from "react-redux";
+import { createSelector } from "reselect";
+
 import BaseMap from '@mapstore/framework/components/map/BaseMap';
 import mapTypeHOC from '@mapstore/framework/components/map/enhancers/mapType';
 import LocalDrawSupport from '@mapstore/framework/components/geostory/common/map/LocalDrawSupport';
@@ -15,7 +18,14 @@ import FitBounds from '@mapstore/framework/components/geostory/common/map/FitBou
 import Button from '@mapstore/framework/components/layout/Button';
 import Icon from '@mapstore/framework/plugins/ResourcesCatalog/components/Icon';
 import Spinner from '@mapstore/framework/components/layout/Spinner';
+import Popover from "@mapstore/framework/components/styleeditor/Popover";
+import useIsMounted from "@mapstore/framework/hooks/useIsMounted";
+import { mapInfoSelector } from "@mapstore/framework/selectors/map";
+
 import { getExtent } from '@js/utils/CoordinatesUtils';
+import { getGeoLimits } from "@js/api/geonode/security";
+import { getResourceData, getResourceId } from "@js/selectors/resource";
+import { resourceToLayers } from '@js/utils/ResourceUtils';
 
 const Map = mapTypeHOC(BaseMap);
 Map.displayName = 'Map';
@@ -174,4 +184,73 @@ GeoLimits.defaultProps = {
     mapType: 'openlayers'
 };
 
-export default GeoLimits;
+const ConnectedGeoLimits = connect(
+    createSelector(
+        [getResourceId, mapInfoSelector, getResourceData],
+        (resourceId, mapInfo, resource) => ({
+            resourceId: resourceId || mapInfo?.id,
+            resource
+        })
+    )
+)(({ entry, onUpdate, resourceId, resource }) => {
+    const isMounted = useIsMounted();
+    const defaultMap = window.overrideNewMapConfig({ map: { layers: [] } });
+    const layers = [
+        ...(defaultMap?.map?.layers || []),
+        ...resourceToLayers(resource)
+    ];
+
+    function handleRequestGeoLimits(_entry) {
+        if (!_entry.geoLimitsLoading) {
+            onUpdate(_entry.id, { geoLimitsLoading: true }, true);
+            getGeoLimits(resourceId, _entry.id, _entry.type)
+                .then((collection) => {
+                    isMounted(() => {
+                        onUpdate(_entry.id, {
+                            geoLimitsLoading: false,
+                            features: collection.features || [],
+                            isGeoLimitsChanged: false
+                        });
+                    });
+                })
+                .catch(() => {
+                    isMounted(() => {
+                        onUpdate(_entry.id, {
+                            geoLimitsLoading: false,
+                            features: [],
+                            isGeoLimitsChanged: false
+                        });
+                    });
+                });
+        }
+    }
+
+    return (
+        <Popover
+            placement="left"
+            onOpen={(open) => {
+                if (open && !entry.features) {
+                    handleRequestGeoLimits(entry);
+                }
+            }}
+            content={
+                <GeoLimits
+                    key={entry.geoLimitsLoading}
+                    layers={layers}
+                    features={entry.features}
+                    loading={entry.geoLimitsLoading}
+                    onChange={(changes) =>
+                        onUpdate(entry.id, { ...changes, isGeoLimitsChanged: true })
+                    }
+                    onRefresh={handleRequestGeoLimits.bind(null, entry)}
+                />
+            }
+        >
+            <Button>
+                <Icon glyph="globe" />
+            </Button>
+        </Popover>
+    );
+});
+
+export default ConnectedGeoLimits;

@@ -697,22 +697,25 @@ export const gnSelectResourceEpic = (action$, store) =>
                     setResourceCompactPermissions(undefined)
                 );
             }
-            const user = userSelector(store.getState());
+            const state = store.getState();
+            const user = userSelector(state);
+            const { resource_type: resourceType, pk, subtype } = selectedResource;
             const _selectedResource = getResourceWithDetail(selectedResource);
             const initialActions = !_selectedResource ? [] : [
                 setResource(_selectedResource, true),
                 setSelectedResource(_selectedResource)
             ];
             return Observable.defer(() => Promise.all([
-                getResourceByTypeAndByPk(selectedResource?.resource_type, selectedResource?.pk, selectedResource?.subtype),
+                getResourceByTypeAndByPk(resourceType, pk, subtype),
                 user
-                    ? getCompactPermissionsByPk(selectedResource?.pk)
+                    ? getCompactPermissionsByPk(pk)
                         .then((compactPermissions) => compactPermissions)
                         .catch(() => null)
                     : Promise.resolve(null)
             ]))
                 .switchMap(([resource, compactPermissions]) => {
                     return Observable.of(
+                        setResourceType(resourceType),
                         setResource(getResourceWithDetail(resource)),
                         ...(compactPermissions ? [setResourceCompactPermissions(compactPermissions)] : [])
                     );
