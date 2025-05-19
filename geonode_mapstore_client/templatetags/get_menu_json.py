@@ -116,7 +116,10 @@ def get_user_menu(context):
 
     if not user or (user and not user.is_authenticated):
         return [
-            {"label": "Sign in", "type": "link", "href": "/account/geonode_openid_connect/login/?process=login&next=/"},
+            {"label": "Register", "type": "link", "href": "/account/signup/?next=/"}
+            if settings.ACCOUNT_OPEN_SIGNUP and not Configuration.load().read_only
+            else None,
+            {"label": "Sign in", "type": "link", "href": "/account/login/?next=/"},
         ]
 
     devider = {"type": "divider"}
