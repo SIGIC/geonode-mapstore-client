@@ -112,11 +112,18 @@ def get_base_right_topbar_menu(context):
 def get_user_menu(context):
     is_mobile = _is_mobile_device(context)
 
-    user = _get_request_user(context)
+    user = _get_request_user(context)        
 
     if not user or (user and not user.is_authenticated):
+        if settings.SOCIALACCOUNT_OIDC_PROVIDER_ENABLED:
+            return [
+                {"label": "Sign in", "type": "link", "href": "/account/geonode_openid_connect/login/?process=login&next=/"},
+            ]
         return [
-            {"label": "Sign in", "type": "link", "href": "/account/geonode_openid_connect/login/?process=login&next=/"},
+            {"label": "Register", "type": "link", "href": "/account/signup/?next=/"}
+            if settings.ACCOUNT_OPEN_SIGNUP and not Configuration.load().read_only
+            else None,
+            {"label": "Sign in", "type": "link", "href": "/account/login/?next=/"},
         ]
 
     devider = {"type": "divider"}
